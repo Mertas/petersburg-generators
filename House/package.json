@@ -1,0 +1,13 @@
+{
+  "name": "house",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "pixi.js": "^8.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

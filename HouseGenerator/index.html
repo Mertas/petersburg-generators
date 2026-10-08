@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Доходный дом — Симулятор</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f0f14;
+      --surface: rgba(26, 26, 36, 0.9);
+      --surface-hover: rgba(34, 34, 47, 0.95);
+      --border: rgba(42, 42, 58, 0.8);
+      --text: #e4e4ec;
+      --text-dim: #8888a0;
+      --accent: #c9a96e;
+      --accent-hover: #d4ba85;
+      --accent-bg: rgba(201, 169, 110, 0.08);
+      --danger: #c44b4b;
+      --success: #5a9e6f;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      cursor: grab;
+      z-index: 1;
+    }
+
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .ui-overlay {
+      position: fixed;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .ui-overlay > * {
+      pointer-events: auto;
+    }
+
+    /* Заголовок */
+    .ui-header {
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      background: rgba(15, 15, 20, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 10px 28px;
+      pointer-events: auto;
+    }
+
+    .ui-header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: var(--text);
+    }
+
+    .ui-header .turn-info {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    /* Панель ресурсов */
+    .resources-panel {
+      top: 140px;
+      left: 20px;
+      background: rgba(15, 15, 20, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 150px;
+      pointer-events: auto;
+    }
+
+    .resource-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .resource-label {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .resource-value {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .resource-value.negative {
+      color: var(--danger);
+    }
+
+    .resource-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      margin-top: 2px;
+      overflow: hidden;
+    }
+
+    .resource-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.4s, background 0.4s;
+    }
+
+    /* Журнал */
+    .log-panel {
+      top: 140px;
+      right: 20px;
+      background: rgba(15, 15, 20, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      width: 260px;
+      max-height: 320px;
+      pointer-events: auto;
+    }
+
+    .log-panel-title {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: 280px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.1) transparent;
+    }
+
+    .log-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .log-list::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+    }
+
+    .log-entry {
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 3px 0;
+    }
+
+    .log-turn {
+      color: var(--text-dim);
+      font-size: 9px;
+      margin-right: 4px;
+    }
+
+    .log-income { color: var(--success); }
+    .log-expense { color: var(--danger); }
+    .log-event { color: var(--accent); }
+    .log-system { color: var(--text-dim); }
+
+    /* Информация о доме */
+    .house-info {
+      top: 140px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 15, 20, 0.55);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: var(--radius);
+      padding: 8px 16px;
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      gap: 14px;
+    }
+
+    .house-info span {
+      white-space: nowrap;
+    }
+
+    /* Кнопка хода */
+    .turn-btn {
+      display: block;
+      width: 240px;
+      margin: 0 auto;
+      padding: 14px 32px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius);
+      transition: all 0.25s;
+      text-transform: uppercase;
+    }
+
+    .turn-btn.active {
+      background: var(--accent);
+      color: #1a1a10;
+      box-shadow: 0 4px 20px rgba(201, 169, 110, 0.3);
+    }
+
+    .turn-btn.active:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(201, 169, 110, 0.4);
+    }
+
+    .turn-btn.active:active {
+      transform: translateY(0);
+    }
+
+    .turn-btn.disabled {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-dim);
+      cursor: not-allowed;
+    }
+
+    .turn-btn.gameover {
+      background: var(--danger);
+      color: #fff;
+      cursor: default;
+      font-size: 12px;
+    }
+
+    /* Панель действий */
+    .action-bar {
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .action-extra {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .action-small-btn {
+      background: rgba(255,255,255,0.06);
+      color: var(--text-dim);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .action-small-btn:hover {
+      background: rgba(255,255,255,0.12);
+      color: var(--text);
+    }
+
+    .action-small-btn.gold {
+      background: rgba(201, 169, 110, 0.12);
+      color: var(--accent);
+      border-color: rgba(201, 169, 110, 0.25);
+    }
+
+    .action-small-btn.gold:hover {
+      background: rgba(201, 169, 110, 0.22);
+    }
+
+    .action-small-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* Модальное окно события */
+    .event-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+    }
+
+    .event-overlay.visible {
+      display: flex;
+    }
+
+    .event-card {
+      background: rgba(26, 26, 36, 0.97);
+      border: 1px solid rgba(201, 169, 110, 0.3);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      max-width: 420px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    }
+
+    .event-icon {
+      font-size: 32px;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .event-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    .event-desc {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+      margin-bottom: 20px;
+      white-space: pre-line;
+    }
+
+    .event-choices {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .event-choice-btn {
+      background: var(--accent);
+      color: #1a1a10;
+      border: none;
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+      letter-spacing: 0.3px;
+    }
+
+    .event-choice-btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .event-choice-btn:last-child {
+      background: rgba(255,255,255,0.08);
+      color: var(--text-dim);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .event-choice-btn:last-child:hover {
+      background: rgba(255,255,255,0.14);
+      color: var(--text);
+    }
+
+    /* UI hints */
+    .ui-hints {
+      bottom: 90px;
+      left: 20px;
+      font-size: 10px;
+      color: var(--text-dim);
+      background: rgba(15, 15, 20, 0.5);
+      backdrop-filter: blur(6px);
+      padding: 6px 10px;
+      border-radius: 16px;
+      display: flex;
+      gap: 10px;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .ui-hints kbd {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 3px;
+      padding: 1px 4px;
+      font-size: 9px;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Заголовок -->
+  <div class="ui-overlay ui-header">
+    <h1>Доходный дом</h1>
+    <div class="turn-info" id="turn-display">Январь 1850 г. · Ход 1</div>
+  </div>
+
+  <!-- Ресурсы -->
+  <div class="ui-overlay resources-panel">
+    <div class="resource-row">
+      <span class="resource-label">Рубли</span>
+      <span class="resource-value" id="resource-money">500 ₽</span>
+    </div>
+    <div class="resource-row">
+      <span class="resource-label">Репутация</span>
+      <span class="resource-value" id="resource-reputation">50</span>
+      <div class="resource-bar"><div class="resource-bar-fill" id="reputation-bar" style="width:50%;background:#5a9e6f"></div></div>
+    </div>
+    <div class="resource-row">
+      <span class="resource-label">Состояние</span>
+      <span class="resource-value" id="resource-condition">70</span>
+      <div class="resource-bar"><div class="resource-bar-fill" id="condition-bar" style="width:70%;background:#5a9e6f"></div></div>
+    </div>
+  </div>
+
+  <!-- Информация о доме -->
+  <div class="ui-overlay house-info" id="house-info">
+    <span id="info-floors">Этажей: 4</span>
+    <span id="info-apts">Квартир: 20</span>
+    <span id="info-tenants">Жильцов: 4</span>
+  </div>
+
+  <!-- Журнал -->
+  <div class="ui-overlay log-panel">
+    <div class="log-panel-title">Журнал событий</div>
+    <div class="log-list" id="event-log">
+      <div class="log-entry log-system"><span class="log-turn">Х.0</span> Добро пожаловать, домовладелец.</div>
+    </div>
+  </div>
+
+  <!-- Подсказки -->
+  <div class="ui-overlay ui-hints">
+    <span>🖱 Тащить</span>
+    <span>⚙️ Зум</span>
+    <span><kbd>R</kbd> Сброс</span>
+    <span><kbd>Enter</kbd> Ход</span>
+  </div>
+
+  <!-- Кнопка хода -->
+  <div class="ui-overlay action-bar" id="action-bar">
+    <div class="action-extra">
+      <button class="action-small-btn gold" id="expand-btn" disabled>🏗 Надстроить этаж (2000 ₽)</button>
+      <button class="action-small-btn" id="export-btn">📷 PNG</button>
+    </div>
+    <button class="turn-btn active" id="game-turn-btn">
+      <span id="turn-btn-text">СЛЕДУЮЩИЙ ХОД</span>
+    </button>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
